@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spooky Sentry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e0b14; --panel:#17121f; --panel2:#0f0b16; --line:#2b2238;
+    --text:#efe9f7; --muted:#a597b8; --accent:#ff7a1a; --accent2:#9b6bff;
+    --danger:#ff3b3b; --ok:#3ddc84;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; color:var(--text);
+    background:radial-gradient(1100px 600px at 15% -10%, #2a1640 0%, transparent 60%), var(--bg);
+    font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  header{display:flex;align-items:center;gap:12px;padding:14px 16px}
+  .logo{font-size:34px;filter:drop-shadow(0 0 10px rgba(255,122,26,.5))}
+  h1{font-family:'Creepster',system-ui,sans-serif;font-weight:400;font-size:36px;letter-spacing:1px;margin:0;line-height:1;
+     color:var(--accent);text-shadow:0 0 18px rgba(255,122,26,.45)}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;padding:0 16px 28px;align-items:start}
+  @media (max-width:920px){.layout{grid-template-columns:1fr}}
+
+  .wrap{position:relative}
+  .stage{position:relative;width:min(100%, calc(78vh * var(--ar,1.7778)));margin-inline:auto;aspect-ratio:var(--ar,1.7778);background:#000;
+         border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .wrap:fullscreen{display:flex;align-items:center;justify-content:center;background:#000}
+  .wrap:fullscreen .stage{width:min(100vw, calc(100vh * var(--ar,1.7778)));border:0;border-radius:0}
+  video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  video.mirror{transform:scaleX(-1)}
+  #overlay{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+  .placeholder{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--muted);padding:20px}
+  .placeholder[hidden]{display:none}
+  .placeholder .big{font-size:48px;margin-bottom:6px}
+  .flash{position:absolute;inset:0;pointer-events:none;opacity:0;
+         background:radial-gradient(circle, rgba(255,40,40,.15) 15%, rgba(200,0,0,.85) 100%)}
+  .flash.go{animation:flash .9s ease-out}
+  @keyframes flash{0%{opacity:1}12%{opacity:.15}26%{opacity:.95}100%{opacity:0}}
+
+  .status{position:absolute;left:12px;top:12px;display:flex;align-items:center;gap:8px;max-width:calc(100% - 24px);
+          background:rgba(10,6,16,.78);backdrop-filter:blur(6px);border:1px solid var(--line);
+          border-radius:999px;padding:6px 12px;font-size:13px;pointer-events:none}
+  .status .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+  .status[data-s=watch] .dot{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  .status[data-s=alert] .dot{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+  .status[data-s=scare] .dot,.status[data-s=error] .dot{background:var(--danger);box-shadow:0 0 10px var(--danger)}
+  .status[data-s=loading] .dot{background:var(--accent2);animation:pulse 1s infinite alternate}
+  .status[data-s=scare]{border-color:var(--danger);font-weight:700}
+  @keyframes pulse{to{opacity:.3}}
+
+  .stagebar{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+  .stats{display:flex;gap:14px;font-size:13px;color:var(--muted);margin-left:auto}
+  .stats b{color:var(--text);font-variant-numeric:tabular-nums}
+  .hint{font-size:12.5px;color:var(--muted);margin:8px 2px 0}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:18px 0 6px;font-weight:600}
+  .ctl{display:block;margin:10px 0}
+  .ctl .top{display:flex;justify-content:space-between;gap:8px;font-size:14px;margin-bottom:2px}
+  .ctl output{color:var(--accent);font-variant-numeric:tabular-nums}
+  .check{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:14px;cursor:pointer}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+  select,button{font:inherit}
+  select{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px}
+  button{background:#231a30;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer}
+  button:hover{border-color:var(--accent2)}
+  button:disabled{opacity:.5;cursor:default}
+  button.primary{background:var(--accent);color:#1a0d00;border:0;font-weight:700;padding:12px 16px;width:100%;font-size:16px}
+  button.primary.stop{background:#3a2a4d;color:var(--text)}
+  .modelline{font-size:12.5px;color:var(--muted);margin-top:8px}
+  .snd{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line)}
+  .snd:last-child{border-bottom:0}
+  .snd .emo{width:22px;text-align:center}
+  .snd .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .snd .len{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+  .snd button{padding:3px 10px}
+  .filebtn{display:inline-block;margin-top:10px}
+  .filebtn input{display:none}
+  .filebtn span{display:inline-block;background:#231a30;border:1px dashed var(--accent2);border-radius:10px;padding:8px 12px;cursor:pointer;font-size:14px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">🎃</div>
+  <div>
+    <h1>Spooky Sentry</h1>
+    <div class="sub">On-device person detection → scary sounds. Video never leaves this browser.</div>
+  </div>
+</header>
+
+<div class="layout">
+  <section>
+    <div class="wrap" id="wrap">
+      <div class="stage" id="stage">
+        <video id="video" playsinline muted></video>
+        <div class="placeholder" id="ph">
+          <div><div class="big">👻</div>Press <b>Start</b> to wake the camera.<br>Then drag on the picture to draw your scare zone.</div>
+        </div>
+        <canvas id="overlay"></canvas>
+        <div class="flash" id="flash"></div>
+        <div class="status" id="status" data-s="idle"><span class="dot"></span><span id="statusText">Idle</span></div>
+      </div>
+    </div>
+    <div class="stagebar">
+      <button id="clearZone">Clear zone (full frame)</button>
+      <button id="testScare">🔊 Test scare</button>
+      <button id="fs">⛶ Fullscreen</button>
+      <div class="stats"><span>Scares: <b id="scareCount">0</b></span><span>AI: <b id="fps">–</b> checks/s</span></div>
+    </div>
+    <p class="hint">Drag on the video to draw the scare zone (e.g. your doorstep). Only people whose body overlaps the zone trigger a sound. No zone = whole frame.</p>
+  </section>
+
+  <aside class="panel">
+    <button class="primary" id="startBtn">▶ Start</button>
+    <div class="modelline" id="modelLine">AI model: loading…</div>
+
+    <h2>Camera</h2>
+    <select id="camera"><option value="">Default camera</option></select>
+    <label class="check"><input type="checkbox" id="mirror"> Mirror view</label>
+
+    <h2>Detection</h2>
+    <label class="ctl"><div class="top"><span>Confidence</span><output id="minScore-v"></output></div>
+      <input type="range" id="minScore" min="30" max="90" step="5"></label>
+    <label class="ctl"><div class="top"><span>Body inside zone</span><output id="overlap-v"></output></div>
+      <input type="range" id="overlap" min="10" max="100" step="5"></label>
+    <label class="ctl"><div class="top"><span>Confirm before scaring</span><output id="confirm-v"></output></div>
+      <input type="range" id="confirm" min="1" max="5" step="1"></label>
+    <label class="ctl"><div class="top"><span>AI checks per second</span><output id="cps-v"></output></div>
+      <input type="range" id="cps" min="2" max="15" step="1"></label>
+    <label class="check"><input type="checkbox" id="boxes"> Show detection boxes</label>
+
+    <h2>Scare</h2>
+    <label class="ctl"><div class="top"><span>Delay before sound</span><output id="delay-v"></output></div>
+      <input type="range" id="delay" min="0" max="3" step="0.1"></label>
+    <label class="ctl"><div class="top"><span>Cooldown between scares</span><output id="cooldown-v"></output></div>
+      <input type="range" id="cooldown" min="2" max="60" step="1"></label>
+    <label class="ctl"><div class="top"><span>Volume</span><output id="volume-v"></output></div>
+      <input type="range" id="volume" min="0" max="100" step="1"></label>
+    <label class="check"><input type="checkbox" id="rearm"> Re-arm only after the zone is empty</label>
+    <label class="check"><input type="checkbox" id="flashOn"> Red flash on screen</label>
+    <label class="check"><input type="checkbox" id="keepAwake"> Keep Bluetooth speaker awake</label>
+
+    <h2>Sounds</h2>
+    <select id="mode">
+      <option value="random">Play order: random (no repeats)</option>
+      <option value="order">Play order: in sequence</option>
+    </select>
+    <div id="soundList" style="margin-top:6px"></div>
+    <label class="filebtn"><input type="file" id="addFiles" accept="audio/*" multiple><span>＋ Add your own sounds</span></label>
+    <div class="hint" id="fileHint">Your files stay in this browser and are not uploaded anywhere.</div>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script>
+/* =========================================================================
+   SOUND SYNTHESIS — 10 Halloween sounds generated with the Web Audio API.
+   Each one is rendered once into an AudioBuffer (offline), then replayed.
+   ========================================================================= */
+// SYNTH-START
+const SR = 44100;
+function mkNoise(c, sec, kind = 'white') {
+  const len = Math.max(1, Math.ceil(sec * c.sampleRate));
+  const b = c.createBuffer(1, len, c.sampleRate), d = b.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < len; i++) {
+    const w = Math.random() * 2 - 1;
+    if (kind === 'brown') { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w;
+  }
+  return b;
+}
+function src(c, buf, t) { const s = c.createBufferSource(); s.buffer = buf; s.start(t); return s; }
+function gainNode(c, v = 1) { const g = c.createGain(); g.gain.value = v; return g; }
+function filt(c, type, f, q = 1) { const b = c.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; }
+function chain(...n) { for (let i = 0; i < n.length - 1; i++) n[i].connect(n[i + 1]); return n[n.length - 1]; }
+function env(p, t, a, hold, r, peak) {
+  p.setValueAtTime(0.0001, t);
+  p.exponentialRampToValueAtTime(peak, t + a);
+  p.setValueAtTime(peak, t + a + hold);
+  p.exponentialRampToValueAtTime(0.0001, t + a + hold + r);
+}
+function makeIR(c, sec, decay) {
+  const len = Math.ceil(sec * c.sampleRate), b = c.createBuffer(2, len, c.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = b.getChannelData(ch);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+  }
+  return b;
+}
+// A crude "vocal tract": oscillator (+ breath noise) through formant band-pass filters.
+function voice(c, out, o) {
+  const { t = 0, dur, f, formants, peak = 0.8, type = 'sawtooth', vib = null, vib2 = null,
+          breath = 0.1, sub = 0, attack = 0.03, release = 0.25 } = o;
+  const a = Math.min(attack, dur * 0.3), r = Math.min(release, dur * 0.5), hold = Math.max(0, dur - a - r);
+  const amp = gainNode(c, 0); env(amp.gain, t, a, hold, r, peak);
+  const pre = gainNode(c, 1);
+  const addLfo = (target, v, mult) => {
+    const l = c.createOscillator(); l.frequency.value = v[0];
+    const lg = gainNode(c, v[1] * mult); l.connect(lg); lg.connect(target); l.start(t); l.stop(t + dur + 0.1);
+  };
+  const mkOsc = (mult, lvl) => {
+    const os = c.createOscillator(); os.type = type;
+    os.frequency.setValueAtTime(f[0][1] * mult, t);
+    for (let i = 1; i < f.length; i++) os.frequency.exponentialRampToValueAtTime(f[i][1] * mult, t + f[i][0] * dur);
+    if (vib) addLfo(os.frequency, vib, mult);
+    if (vib2) addLfo(os.frequency, vib2, mult);
+    const og = gainNode(c, lvl); os.connect(og); og.connect(pre); os.start(t); os.stop(t + dur + 0.1);
+  };
+  mkOsc(1, 1);
+  if (sub) mkOsc(0.5, sub);
+  if (breath > 0) { const n = src(c, mkNoise(c, dur + 0.1), t); const ng = gainNode(c, breath); n.connect(ng); ng.connect(pre); }
+  formants.forEach(([fr, q, g]) => { const bp = filt(c, 'bandpass', fr, q); const fg = gainNode(c, g); pre.connect(bp); bp.connect(fg); fg.connect(amp); });
+  amp.connect(out);
+}
+
+const SYNTHS = [
+  { id: 'laugh', name: 'Evil laugh', emoji: '😈', dur: 3.1, wet: 0.35, ir: 2.5, make(c, o) {
+      const F = [[650, 6, 3], [1080, 7, 2], [2600, 9, 1]];
+      voice(c, o, { t: 0, dur: 0.6, f: [[0, 85], [0.4, 125], [1, 110]], formants: [[350, 6, 3], [800, 7, 2], [2500, 9, 0.8]],
+                    sub: 0.6, vib: [5, 3], breath: 0.12, release: 0.2 });
+      let t = 0.68;
+      for (let i = 0; i < 6; i++) {
+        const p = 128 * Math.pow(0.96, i);
+        voice(c, o, { t, dur: 0.17, f: [[0, p * 1.12], [1, p * 0.88]], formants: F, sub: 0.6, breath: 0.25, attack: 0.015, release: 0.1 });
+        t += 0.215;
+      }
+      voice(c, o, { t: t + 0.05, dur: 1.0, f: [[0, 118], [0.3, 108], [1, 68]], formants: F, sub: 0.6, vib: [5.5, 4], breath: 0.2, release: 0.6 });
+  }},
+  { id: 'cackle', name: 'Witch cackle', emoji: '🧙‍♀️', dur: 2.8, wet: 0.3, ir: 2, make(c, o) {
+      const F = [[1000, 6, 3], [1750, 8, 2], [3100, 10, 1.4]];
+      let t = 0;
+      for (let i = 0; i < 13; i++) {
+        const p = 470 + 70 * Math.sin(i * 0.8) + (i < 3 ? 60 : 0);
+        voice(c, o, { t, dur: 0.095, f: [[0, p * 1.15], [1, p * 0.85]], formants: F, breath: 0.3, attack: 0.01, release: 0.06 });
+        t += (i % 4 === 3) ? 0.19 : 0.12;
+      }
+      voice(c, o, { t: t + 0.05, dur: 0.9, f: [[0, 640], [0.5, 700], [1, 480]], formants: [[450, 6, 2], [2300, 8, 3], [3200, 10, 1.5]],
+                    vib: [7, 30], breath: 0.3, release: 0.5 });
+  }},
+  { id: 'moan', name: 'Ghostly moan', emoji: '👻', dur: 4.3, wet: 0.55, ir: 3.5, make(c, o) {
+      const lp = filt(c, 'lowpass', 1100, 2), amp = gainNode(c, 0);
+      env(amp.gain, 0, 0.9, 2.1, 1.2, 0.9);
+      const mk = (mult, lvl) => {
+        const os = c.createOscillator(); os.type = 'triangle'; const fr = os.frequency;
+        fr.setValueAtTime(190 * mult, 0); fr.exponentialRampToValueAtTime(310 * mult, 1.3);
+        fr.exponentialRampToValueAtTime(250 * mult, 2.6); fr.exponentialRampToValueAtTime(150 * mult, 4.0);
+        const l = c.createOscillator(); l.frequency.value = 4.5; const lg = gainNode(c, 7 * mult);
+        l.connect(lg); lg.connect(fr); l.start(0); l.stop(4.3);
+        const g = gainNode(c, lvl); os.connect(g); g.connect(lp); os.start(0); os.stop(4.3);
+      };
+      mk(1, 1); mk(0.995, 0.6); mk(1.5, 0.35);
+      lp.connect(amp); amp.connect(o);
+      const n = src(c, mkNoise(c, 4.4, 'brown'), 0), bp = filt(c, 'bandpass', 300, 3);
+      bp.frequency.setValueAtTime(300, 0); bp.frequency.linearRampToValueAtTime(900, 1.8); bp.frequency.linearRampToValueAtTime(350, 4.2);
+      const wg = gainNode(c, 0); env(wg.gain, 0, 1.2, 1.8, 1.3, 3);
+      chain(n, bp, wg, o);
+  }},
+  { id: 'door', name: 'Creaking door + slam', emoji: '🚪', dur: 3.2, wet: 0.35, ir: 2.5, make(c, o) {
+      const bank = gainNode(c, 1), out = gainNode(c, 6);
+      [[520, 18, 1], [1150, 22, 0.8], [1900, 25, 0.6], [2900, 30, 0.35]].forEach(([f, q, a]) => {
+        const b = filt(c, 'bandpass', f, q), g = gainNode(c, a); bank.connect(b); b.connect(g); g.connect(out);
+      });
+      out.connect(o);
+      const cb = c.createBuffer(1, Math.ceil(0.006 * c.sampleRate), c.sampleRate), d = cb.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+      let t = 0.05; const T = 2.4;
+      while (t < T) {   // stick-slip friction: a stream of clicks whose rate wanders
+        const x = t / T;
+        const rate = 14 + 70 * Math.pow(Math.sin(Math.PI * x), 1.3) + 12 * Math.sin(t * 9);
+        const a = 0.4 + 0.6 * Math.sin(Math.PI * x);
+        const s = c.createBufferSource(); s.buffer = cb;
+        const g = gainNode(c, a * (0.7 + Math.random() * 0.6)); s.connect(g); g.connect(bank); s.start(t);
+        t += (1 / rate) * (0.85 + Math.random() * 0.3);
+      }
+      const n = src(c, mkNoise(c, 0.6, 'brown'), 2.55), lp = filt(c, 'lowpass', 180, 1), sg = gainNode(c, 0);
+      env(sg.gain, 2.55, 0.005, 0.03, 0.5, 2); chain(n, lp, sg, o);
+      const k = c.createOscillator(); k.frequency.setValueAtTime(90, 2.55); k.frequency.exponentialRampToValueAtTime(40, 2.9);
+      const kg = gainNode(c, 0); env(kg.gain, 2.55, 0.003, 0.02, 0.35, 0.5); k.connect(kg); kg.connect(o); k.start(2.55); k.stop(3.1);
+  }},
+  { id: 'scream', name: 'Blood-curdling scream', emoji: '😱', dur: 2.2, wet: 0.35, ir: 2.5, make(c, o) {
+      const F = [[950, 5, 3], [1550, 6, 2.4], [2900, 8, 2], [3700, 9, 1]];
+      const base = { t: 0.02, dur: 2.0, formants: F, vib: [6.5, 40], vib2: [13, 22], breath: 0.45, attack: 0.08, release: 0.6, peak: 1 };
+      voice(c, o, { ...base, f: [[0, 620], [0.12, 1050], [0.55, 1180], [1, 760]] });
+      voice(c, o, { ...base, f: [[0, 632], [0.12, 1068], [0.55, 1196], [1, 770]], peak: 0.6, vib: [7.1, 35] });
+  }},
+  { id: 'thunder', name: 'Thunderclap', emoji: '⛈️', dur: 5, wet: 0.3, ir: 3, make(c, o) {
+      const cr = src(c, mkNoise(c, 0.5), 0.05), clp = filt(c, 'lowpass', 5000, 0.7), cg = gainNode(c, 0);
+      env(cg.gain, 0.05, 0.004, 0.04, 0.4, 0.6); chain(cr, clp, cg, o);
+      const n = src(c, mkNoise(c, 5, 'brown'), 0.08), lp = filt(c, 'lowpass', 450, 0.8), rg = gainNode(c, 0);
+      const N = 240, curve = new Float32Array(N); let s = 0.6;
+      for (let i = 0; i < N; i++) {
+        s = Math.min(1, Math.max(0.15, s + (Math.random() - 0.5) * 0.35));
+        const x = i / (N - 1); curve[i] = s * Math.min(1, x * 12) * Math.pow(1 - x, 1.6) * 4;
+      }
+      rg.gain.setValueCurveAtTime(curve, 0.08, 4.8);
+      chain(n, lp, rg, o);
+  }},
+  { id: 'heart', name: 'Racing heartbeat', emoji: '💓', dur: 5.9, wet: 0.15, ir: 1.5, make(c, o) {
+      const thump = (t, a) => {
+        [[60, 34, 1], [120, 70, 0.5]].forEach(([f1, f2, l]) => {
+          const os = c.createOscillator(); os.frequency.setValueAtTime(f1, t); os.frequency.exponentialRampToValueAtTime(f2, t + 0.15);
+          const g = gainNode(c, 0); env(g.gain, t, 0.006, 0.03, 0.17, a * l); os.connect(g); g.connect(o); os.start(t); os.stop(t + 0.3);
+        });
+        const n = src(c, mkNoise(c, 0.05), t), lp = filt(c, 'lowpass', 400, 1), g = gainNode(c, 0);
+        env(g.gain, t, 0.002, 0.005, 0.04, a * 0.4); chain(n, lp, g, o);
+      };
+      let t = 0.05, gap = 0.95;
+      for (let i = 0; i < 9; i++) { thump(t, 0.9); thump(t + 0.17, 0.65); t += gap; gap = Math.max(0.4, gap * 0.9); }
+  }},
+  { id: 'wolf', name: 'Wolf howl', emoji: '🐺', dur: 4.8, wet: 0.55, ir: 4, make(c, o) {
+      const howl = (t, m, p) => voice(c, o, { t, dur: 3.0, type: 'triangle',
+        f: [[0, 300 * m], [0.12, 520 * m], [0.3, 640 * m], [0.75, 610 * m], [1, 380 * m]],
+        formants: [[600, 3, 2], [1000, 4, 1.2], [2200, 6, 0.4]], vib: [5, 7 * m], breath: 0.12, attack: 0.25, release: 1.0, peak: p });
+      howl(0, 1, 0.9); howl(1.7, 0.86, 0.35);
+  }},
+  { id: 'chains', name: 'Rattling chains', emoji: '⛓️', dur: 3, wet: 0.4, ir: 2.5, make(c, o) {
+      const nb = mkNoise(c, 0.25);
+      const clink = (t, a) => {
+        const s = c.createBufferSource(); s.buffer = nb;
+        const g = gainNode(c, 0); env(g.gain, t, 0.001, 0.004, 0.12 + Math.random() * 0.1, a); s.connect(g);
+        const r = 0.85 + Math.random() * 0.3;
+        [2150, 3420, 4870, 6230].forEach((f, k) => {
+          const b = filt(c, 'bandpass', f * r * (1 + k * 0.013 * Math.random()), 35), bg = gainNode(c, [1.4, 1.1, 0.8, 0.5][k]);
+          g.connect(b); b.connect(bg); bg.connect(o);
+        });
+        s.start(t); s.stop(t + 0.25);
+      };
+      [[0.05, 14], [1.0, 18], [2.0, 10]].forEach(([t0, n]) => {
+        for (let i = 0; i < n; i++) clink(t0 + (i / n) * 0.6 + Math.random() * 0.03, 0.4 + Math.random() * 0.6);
+      });
+  }},
+  { id: 'stinger', name: 'Jump-scare stinger', emoji: '💀', dur: 4.2, wet: 0.4, ir: 3, make(c, o) {
+      const H = 1.3;
+      const n = src(c, mkNoise(c, H), 0), bp = filt(c, 'bandpass', 250, 4);
+      bp.frequency.setValueAtTime(250, 0); bp.frequency.exponentialRampToValueAtTime(3500, H);
+      const ng = gainNode(c, 0); ng.gain.setValueAtTime(0.0001, 0); ng.gain.exponentialRampToValueAtTime(1.2, H - 0.02); ng.gain.linearRampToValueAtTime(0, H);
+      chain(n, bp, ng, o);
+      const r = c.createOscillator(); r.type = 'sawtooth'; r.frequency.setValueAtTime(110, 0); r.frequency.exponentialRampToValueAtTime(880, H);
+      const rl = filt(c, 'lowpass', 1500, 1), rg = gainNode(c, 0);
+      rg.gain.setValueAtTime(0.0001, 0); rg.gain.exponentialRampToValueAtTime(0.25, H - 0.02); rg.gain.linearRampToValueAtTime(0, H);
+      chain(r, rl, rg, o); r.start(0); r.stop(H + 0.05);
+      const lp = filt(c, 'lowpass', 7000, 1.5); lp.frequency.setValueAtTime(7000, H); lp.frequency.exponentialRampToValueAtTime(500, H + 2.6);
+      const hg = gainNode(c, 0); env(hg.gain, H, 0.005, 0.15, 2.4, 0.9); lp.connect(hg); hg.connect(o);
+      [55, 58.27, 110, 116.54, 155.56, 233.08, 329.63, 466.16].forEach(f => {   // dissonant cluster
+        const os = c.createOscillator(); os.type = 'sawtooth'; os.frequency.value = f; os.detune.value = (Math.random() - 0.5) * 20;
+        const g = gainNode(c, 0.18); os.connect(g); g.connect(lp); os.start(H); os.stop(H + 2.8);
+      });
+      const b = c.createOscillator(); b.frequency.setValueAtTime(75, H); b.frequency.exponentialRampToValueAtTime(30, H + 0.8);
+      const bg = gainNode(c, 0); env(bg.gain, H, 0.003, 0.05, 0.8, 1); b.connect(bg); bg.connect(o); b.start(H); b.stop(H + 1);
+      const cr = src(c, mkNoise(c, 1.2), H), cg = gainNode(c, 0); env(cg.gain, H, 0.002, 0.02, 0.9, 0.6); chain(cr, cg, o);
+      voice(c, o, { t: H + 0.02, dur: 1.1, f: [[0, 1500], [1, 1250]], formants: [[1500, 4, 2], [2600, 6, 1.5]],
+                    vib: [9, 60], breath: 0.2, attack: 0.01, release: 0.7, peak: 0.5 });
+  }},
+];
+
+function normalize(buf, target) {
+  let peak = 0;
+  for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+    const d = buf.getChannelData(ch); for (let i = 0; i < d.length; i++) { const v = Math.abs(d[i]); if (v > peak) peak = v; }
+  }
+  if (peak > 0) { const k = target / peak; for (let ch = 0; ch < buf.numberOfChannels; ch++) { const d = buf.getChannelData(ch); for (let i = 0; i < d.length; i++) d[i] *= k; } }
+  return peak;
+}
+async function renderSynth(def) {
+  const OAC = globalThis.OfflineAudioContext || globalThis.webkitOfflineAudioContext;
+  const tail = def.ir ?? 2.5, len = Math.ceil((def.dur + tail) * SR);
+  const c = new OAC(2, len, SR);
+  const bus = c.createGain(), conv = c.createConvolver(), wet = gainNode(c, def.wet ?? 0.35);
+  conv.buffer = makeIR(c, tail, 2.8);
+  bus.connect(c.destination); bus.connect(conv); conv.connect(wet); wet.connect(c.destination);
+  def.make(c, bus);
+  const buf = await c.startRendering();
+  normalize(buf, 0.95);
+  return buf;
+}
+// SYNTH-END
+
+/* =========================================================================
+   APP
+   ========================================================================= */
+(() => {
+  const $ = s => document.querySelector(s);
+  const video = $('#video'), canvas = $('#overlay'), g = canvas.getContext('2d');
+  const wrap = $('#wrap'), ph = $('#ph'), flashEl = $('#flash');
+  const statusEl = $('#status'), statusText = $('#statusText');
+  const startBtn = $('#startBtn'), camSel = $('#camera'), fpsEl = $('#fps'), scareCountEl = $('#scareCount');
+
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('spooky:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem('spooky:' + k, JSON.stringify(v)); } catch {} }
+  };
+  const defaults = { minScore: 55, overlap: 30, confirm: 2, cps: 6, delay: 0.3, cooldown: 10, volume: 85,
+                     rearm: true, flash: true, boxes: true, mirror: true, mode: 'random', cameraId: '', keepAwake: true };
+  const S = Object.assign({}, defaults, store.get('settings', {}));
+  const save = () => store.set('settings', S);
+  let zone = store.get('zone', null);   // {x,y,w,h} normalized to the displayed picture
+
+  /* ---------- status ---------- */
+  let statusHoldUntil = 0;
+  function setStatus(s, text) { statusEl.dataset.s = s; statusText.textContent = text; }
+
+  /* ---------- audio ---------- */
+  let audioCtx = null, master = null, current = null;
+  // iPhone: play as media so the ring/silent switch doesn't mute the scares.
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+  function getCtx() {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AC(); master = audioCtx.createGain(); master.gain.value = S.volume / 100; master.connect(audioCtx.destination);
+    }
+    return audioCtx;
+  }
+  async function ensureAudio() { const c = getCtx(); if (c.state !== 'running') { try { await c.resume(); } catch {} } return c; }
+  // Bluetooth speakers often power down or clip the first second of sound after a few
+  // minutes of silence. A very quiet, low hum keeps the link open while watching.
+  let keepAliveNode = null;
+  function setKeepAlive(on) {
+    if (on && !keepAliveNode && audioCtx) {
+      const o = audioCtx.createOscillator(), gn = audioCtx.createGain();
+      o.frequency.value = 40; gn.gain.value = 0.003;
+      o.connect(gn); gn.connect(audioCtx.destination); o.start();
+      keepAliveNode = o;
+    } else if (!on && keepAliveNode) { try { keepAliveNode.stop(); } catch {} keepAliveNode = null; }
+  }
+  function playItem(item) {
+    if (!item || !item.buffer) return;
+    const c = getCtx(); if (c.state !== 'running') c.resume();
+    if (current) { try { current.stop(); } catch {} }
+    const s = c.createBufferSource(); s.buffer = item.buffer; s.connect(master); s.start(); current = s;
+    s.onended = () => { if (current === s) current = null; };
+  }
+
+  /* ---------- sound library ---------- */
+  const enabledMap = store.get('enabled', {});
+  const library = SYNTHS.map(d => ({ id: d.id, name: d.name, emoji: d.emoji, buffer: null, enabled: enabledMap[d.id] !== false, builtin: true }));
+  const saveEnabled = () => { const m = {}; library.filter(s => s.builtin).forEach(s => m[s.id] = s.enabled); store.set('enabled', m); };
+
+  function renderSoundList() {
+    const list = $('#soundList'); list.innerHTML = '';
+    library.forEach(s => {
+      const row = document.createElement('div'); row.className = 'snd';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = s.enabled; cb.title = 'Use in scares';
+      cb.onchange = () => { s.enabled = cb.checked; saveEnabled(); };
+      const emo = document.createElement('span'); emo.className = 'emo'; emo.textContent = s.emoji;
+      const name = document.createElement('span'); name.className = 'name'; name.textContent = s.name; name.title = s.name;
+      const len = document.createElement('span'); len.className = 'len'; len.textContent = s.buffer ? s.buffer.duration.toFixed(1) + 's' : '…';
+      const play = document.createElement('button'); play.textContent = '▶'; play.disabled = !s.buffer; play.title = 'Preview';
+      play.onclick = async () => { await ensureAudio(); playItem(s); };
+      row.append(cb, emo, name, len, play);
+      if (!s.builtin) {
+        const rm = document.createElement('button'); rm.textContent = '✕'; rm.title = 'Remove';
+        rm.onclick = () => { library.splice(library.indexOf(s), 1); renderSoundList(); };
+        row.append(rm);
+      }
+      list.append(row);
+    });
+  }
+  renderSoundList();
+  (async () => {
+    for (const [i, def] of SYNTHS.entries()) {
+      try { library[i].buffer = await renderSynth(def); } catch (e) { console.error('sound', def.id, e); }
+      renderSoundList();
+    }
+  })();
+
+  $('#addFiles').addEventListener('change', async e => {
+    const c = getCtx(); let added = 0;
+    for (const f of e.target.files) {
+      try {
+        const ab = await f.arrayBuffer();
+        const buf = await new Promise((res, rej) => { const p = c.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
+        library.push({ id: 'u' + Date.now() + Math.random(), name: f.name.replace(/\.[^.]+$/, ''), emoji: '🎵', buffer: buf, enabled: true, builtin: false });
+        added++;
+      } catch { $('#fileHint').textContent = `Couldn't read "${f.name}" — try an MP3, WAV or OGG file.`; }
+    }
+    if (added) $('#fileHint').textContent = `Added ${added} sound${added > 1 ? 's' : ''}. They stay in this browser (re-add after reloading).`;
+    e.target.value = ''; renderSoundList();
+  });
+
+  let lastId = null, seqIdx = 0;
+  function pickSound() {
+    const pool = library.filter(s => s.enabled && s.buffer);
+    if (!pool.length) return null;
+    if (S.mode === 'order') return pool[(seqIdx++) % pool.length];
+    if (pool.length === 1) return pool[0];
+    let s; do { s = pool[Math.floor(Math.random() * pool.length)]; } while (s.id === lastId);
+    lastId = s.id; return s;
+  }
+
+  let scares = 0, lastScare = -Infinity;
+  function scare(isTest) {
+    const s = pickSound();
+    playItem(s);
+    if (S.flash) { flashEl.classList.remove('go'); void flashEl.offsetWidth; flashEl.classList.add('go'); }
+    if (!isTest) { scares++; scareCountEl.textContent = scares; lastScare = performance.now(); }
+    setStatus('scare', s ? `BOO! ${s.emoji} ${s.name}` : 'BOO! (no sounds enabled)');
+    statusHoldUntil = performance.now() + 1500;
+  }
+
+  /* ---------- AI model ---------- */
+  let model = null, modelPromise = null;
+  const modelLine = $('#modelLine');
+  function loadModel() {
+    if (!modelPromise) {
+      modelLine.textContent = 'AI model: loading…';
+      modelPromise = (async () => {
+        if (typeof cocoSsd === 'undefined' || typeof tf === 'undefined')
+          throw new Error('AI library failed to load — the first load needs internet.');
+        await tf.ready();
+        model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+        modelLine.textContent = `AI model: ready (on-device, ${tf.getBackend()})`;
+        return model;
+      })();
+      modelPromise.catch(e => { modelLine.textContent = 'AI model: ' + e.message; modelPromise = null; });
+    }
+    return modelPromise;
+  }
+  loadModel();
+
+  /* ---------- camera ---------- */
+  let stream = null;
+  function stopCamera() { if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; } video.srcObject = null; }
+  async function startCamera(deviceId) {
+    stopCamera();
+    const base = { width: { ideal: 1280 }, height: { ideal: 720 } };
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: deviceId ? { ...base, deviceId: { exact: deviceId } } : base });
+    } catch (e) {
+      if (deviceId && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError')) {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: base });
+      } else throw e;
+    }
+    video.srcObject = stream; await video.play();
+    const track = stream.getVideoTracks()[0];
+    if (track) track.addEventListener('ended', onCameraLost);
+    // Phones: the back camera shouldn't be mirrored, the selfie camera should.
+    const facing = track && track.getSettings && track.getSettings().facingMode;
+    if (facing === 'environment' || facing === 'user') {
+      S.mirror = facing === 'user'; save(); $('#mirror').checked = S.mirror; video.classList.toggle('mirror', S.mirror);
+    }
+    await listCameras();
+  }
+  // Camera unplugged, taken by another app, or put to sleep: keep trying to get it back.
+  let reconnecting = false;
+  async function onCameraLost() {
+    if (!running || reconnecting) return;
+    reconnecting = true; boxes = []; presentStreak = 0;
+    setStatus('error', 'Camera disconnected — reconnecting…');
+    while (running) {
+      await new Promise(r => setTimeout(r, 2000));
+      if (!running) break;
+      try { await startCamera(S.cameraId); setStatus('watch', 'Camera back · watching for visitors…'); break; }
+      catch (e) { setStatus('error', 'Camera disconnected — plug it back in (' + camError(e) + ')'); }
+    }
+    reconnecting = false;
+  }
+  navigator.mediaDevices?.addEventListener?.('devicechange', () => { if (stream) listCameras(); });
+  async function listCameras() {
+    try {
+      const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+      const cur = stream && stream.getVideoTracks()[0]?.getSettings().deviceId;
+      camSel.innerHTML = '';
+      devs.forEach((d, i) => {
+        const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || `Camera ${i + 1}`;
+        if (d.deviceId === cur) o.selected = true; camSel.append(o);
+      });
+    } catch {}
+  }
+  camSel.addEventListener('change', async () => {
+    S.cameraId = camSel.value; save();
+    if (running) { try { await startCamera(S.cameraId); } catch (e) { setStatus('error', camError(e)); } }
+  });
+  const fitStage = () => { if (video.videoWidth) wrap.style.setProperty('--ar', (video.videoWidth / video.videoHeight).toFixed(4)); };
+  video.addEventListener('loadedmetadata', fitStage);
+  video.addEventListener('resize', fitStage);   // phone rotated or camera switched
+  function camError(e) {
+    if (!window.isSecureContext) return 'Camera needs https:// or http://localhost';
+    if (e && e.name === 'NotAllowedError') return 'Camera permission was blocked — allow it in the address bar';
+    if (e && e.name === 'NotFoundError') return 'No camera found';
+    if (e && e.name === 'NotReadableError') return 'Camera is busy in another app';
+    return (e && e.message) || 'Camera error';
+  }
+
+  /* ---------- wake lock (keep screen on) ---------- */
+  let wakeLock = null;
+  async function requestWakeLock() { try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {} }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (running) requestWakeLock();
+    if (audioCtx && audioCtx.state !== 'running') audioCtx.resume().catch(() => {});   // phones suspend audio in the background
+  });
+
+  /* ---------- start / stop ---------- */
+  let running = false, pending = false, armed = true, presentStreak = 0, emptyStreak = 0, boxes = [];
+  function updateStartBtn() {
+    startBtn.textContent = running ? '■ Stop' : '▶ Start';
+    startBtn.classList.toggle('stop', running);
+  }
+  async function start() {
+    startBtn.disabled = true;
+    try {
+      await ensureAudio();
+      setStatus('loading', 'Starting camera…');
+      await startCamera(S.cameraId);
+      ph.hidden = true;
+      if (!model) { setStatus('loading', 'Loading AI model…'); await loadModel(); }
+      running = true; armed = true; pending = false; presentStreak = emptyStreak = 0;
+      requestWakeLock(); setKeepAlive(S.keepAwake);
+      setStatus('watch', 'Watching for visitors…');
+    } catch (e) {
+      console.error(e);
+      setStatus('error', e && e.name ? camError(e) : (e.message || String(e)));
+      if (!running) { stopCamera(); ph.hidden = false; }
+    }
+    startBtn.disabled = false; updateStartBtn();
+  }
+  function stop() {
+    running = false; pending = false; boxes = [];
+    stopCamera(); ph.hidden = false;
+    try { wakeLock && wakeLock.release(); } catch {} wakeLock = null;
+    setKeepAlive(false);
+    fpsEl.textContent = '–'; setStatus('idle', 'Stopped'); updateStartBtn();
+  }
+  startBtn.addEventListener('click', () => running ? stop() : start());
+  $('#testScare').addEventListener('click', async () => { await ensureAudio(); scare(true); });
+
+  /* ---------- detection ---------- */
+  function overlapFrac(b) {
+    if (!zone) return 1;
+    const ix = Math.max(0, Math.min(b.x + b.w, zone.x + zone.w) - Math.max(b.x, zone.x));
+    const iy = Math.max(0, Math.min(b.y + b.h, zone.y + zone.h) - Math.max(b.y, zone.y));
+    return (ix * iy) / ((b.w * b.h) || 1);
+  }
+  function handleDetections(preds, now) {
+    if (!running || reconnecting) return;
+    const vw = video.videoWidth || 1, vh = video.videoHeight || 1;
+    boxes = preds.filter(p => p.class === 'person' && p.score >= S.minScore / 100).map(p => {
+      let [x, y, w, h] = p.bbox; x /= vw; y /= vh; w /= vw; h /= vh;
+      if (S.mirror) x = 1 - x - w;
+      const b = { x, y, w, h, score: p.score }; b.inZone = overlapFrac(b) >= S.overlap / 100; return b;
+    });
+    const present = boxes.some(b => b.inZone);
+    if (present) { presentStreak++; emptyStreak = 0; } else { presentStreak = 0; emptyStreak++; if (emptyStreak >= 2) armed = true; }
+    const coolLeft = Math.max(0, S.cooldown * 1000 - (now - lastScare));
+    if (present && presentStreak >= S.confirm && coolLeft === 0 && (armed || !S.rearm) && !pending) {
+      pending = true; armed = false;
+      const fire = () => { pending = false; if (running) scare(false); };
+      S.delay > 0 ? setTimeout(fire, S.delay * 1000) : fire();
+    }
+    if (now < statusHoldUntil) return;
+    if (pending) setStatus('alert', 'Visitor spotted… 👀');
+    else if (present && coolLeft > 0) setStatus('alert', `Visitor in zone · cooling down ${Math.ceil(coolLeft / 1000)}s`);
+    else if (present && !armed && S.rearm) setStatus('alert', 'Visitor still in zone · re-arms when they leave');
+    else if (present) setStatus('alert', 'Visitor in zone');
+    else if (boxes.length) setStatus('watch', `${boxes.length} ${boxes.length > 1 ? 'people' : 'person'} nearby · outside zone`);
+    else setStatus('watch', 'Watching for visitors…');
+  }
+
+  /* ---------- zone drawing ---------- */
+  let dragStart = null, drag = null;
+  const clamp01 = v => Math.min(1, Math.max(0, v));
+  function pt(e) { const r = canvas.getBoundingClientRect(); return { x: clamp01((e.clientX - r.left) / r.width), y: clamp01((e.clientY - r.top) / r.height) }; }
+  canvas.addEventListener('pointerdown', e => { dragStart = pt(e); drag = { x: dragStart.x, y: dragStart.y, w: 0, h: 0 }; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointermove', e => {
+    if (!dragStart) return; const p = pt(e);
+    drag = { x: Math.min(dragStart.x, p.x), y: Math.min(dragStart.y, p.y), w: Math.abs(p.x - dragStart.x), h: Math.abs(p.y - dragStart.y) };
+  });
+  const endDrag = () => {
+    if (drag && drag.w > 0.03 && drag.h > 0.03) { zone = drag; store.set('zone', zone); armed = true; }
+    dragStart = drag = null;
+  };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', () => { dragStart = drag = null; });
+  $('#clearZone').addEventListener('click', () => { zone = null; store.set('zone', null); });
+
+  /* ---------- fullscreen ---------- */
+  $('#fs').addEventListener('click', () => {
+    if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else (wrap.requestFullscreen || wrap.webkitRequestFullscreen)?.call(wrap);
+  });
+
+  /* ---------- render loop ---------- */
+  let lastDet = 0, busy = false; const detTimes = [];
+  function draw() {
+    const r = canvas.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+    const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
+    if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+    g.clearRect(0, 0, W, H);
+    const z = drag || zone;
+    if (z) {
+      const zx = z.x * W, zy = z.y * H, zw = z.w * W, zh = z.h * H;
+      g.save();
+      g.fillStyle = 'rgba(8,4,14,0.5)'; g.beginPath(); g.rect(0, 0, W, H); g.rect(zx, zy, zw, zh); g.fill('evenodd');
+      g.setLineDash([10 * dpr, 6 * dpr]); g.lineWidth = 2 * dpr; g.strokeStyle = '#ff7a1a'; g.strokeRect(zx, zy, zw, zh);
+      g.setLineDash([]); g.font = `700 ${12 * dpr}px system-ui, sans-serif`; g.fillStyle = '#ff7a1a';
+      g.fillText('🎃 SCARE ZONE', zx + 6 * dpr, zy + 17 * dpr);
+      g.restore();
+    }
+    if (running && S.boxes) {
+      g.font = `600 ${12 * dpr}px system-ui, sans-serif`;
+      for (const b of boxes) {
+        const col = b.inZone ? '#ff3b3b' : 'rgba(255,255,255,0.8)';
+        const bx = b.x * W, by = b.y * H;
+        g.lineWidth = 2.5 * dpr; g.strokeStyle = col; g.strokeRect(bx, by, b.w * W, b.h * H);
+        const label = `person ${Math.round(b.score * 100)}%`, tw = g.measureText(label).width + 10 * dpr;
+        const ly = by > 20 * dpr ? by - 18 * dpr : by;
+        g.fillStyle = col; g.fillRect(bx, ly, tw, 18 * dpr);
+        g.fillStyle = b.inZone ? '#fff' : '#120a1a'; g.fillText(label, bx + 5 * dpr, ly + 13 * dpr);
+      }
+    }
+  }
+  function loop(now) {
+    if (running && model && !busy && !reconnecting && video.readyState >= 2 && now - lastDet >= 1000 / S.cps) {
+      busy = true; lastDet = now;
+      model.detect(video, 10, 0.25)
+        .then(p => { handleDetections(p, performance.now()); detTimes.push(performance.now()); })
+        .catch(e => console.error(e))
+        .finally(() => { busy = false; });
+    }
+    draw();
+    if (running) {
+      const cut = performance.now() - 1000; while (detTimes.length && detTimes[0] < cut) detTimes.shift();
+      fpsEl.textContent = detTimes.length;
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  /* ---------- settings UI ---------- */
+  function bindRange(key, fmt, cb) {
+    const el = $('#' + key), out = $('#' + key + '-v');
+    el.value = S[key]; out.textContent = fmt(S[key]);
+    el.addEventListener('input', () => { S[key] = +el.value; out.textContent = fmt(S[key]); save(); cb && cb(); });
+  }
+  function bindCheck(id, key, cb) {
+    const el = $('#' + id); el.checked = S[key];
+    el.addEventListener('change', () => { S[key] = el.checked; save(); cb && cb(); });
+  }
+  bindRange('minScore', v => v + '%');
+  bindRange('overlap', v => v + '%');
+  bindRange('confirm', v => v === 1 ? 'instant' : v + ' checks');
+  bindRange('cps', v => v + '/s');
+  bindRange('delay', v => v.toFixed(1) + 's');
+  bindRange('cooldown', v => v + 's');
+  bindRange('volume', v => v + '%', () => { if (master) master.gain.value = S.volume / 100; });
+  const applyMirror = () => video.classList.toggle('mirror', S.mirror);
+  bindCheck('mirror', 'mirror', applyMirror); applyMirror();
+  bindCheck('rearm', 'rearm');
+  bindCheck('flashOn', 'flash');
+  bindCheck('boxes', 'boxes');
+  bindCheck('keepAwake', 'keepAwake', () => setKeepAlive(running && S.keepAwake));
+  if (!(document.fullscreenEnabled || document.webkitFullscreenEnabled)) $('#fs').hidden = true;   // e.g. iPhone
+  const modeSel = $('#mode'); modeSel.value = S.mode;
+  modeSel.addEventListener('change', () => { S.mode = modeSel.value; save(); });
+
+  if (!window.isSecureContext) setStatus('error', 'Open via https:// or http://localhost for camera access');
+})();
+</script>
+</body>
+</html>
